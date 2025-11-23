@@ -333,7 +333,8 @@ const Dashboard = ({ isAdmin, onLogout }) => {
             position: 'outside',
             distanceToLabelLine: 5,       // Distance from connector line end
             formatter: (params) => {
-              return `{name|${params.name}}\n{percent|${params.percent.toFixed(1)}%}`;
+              // Show absolute value instead of percentage
+              return `{name|${params.name}}\n{value|${formatNumber(params.value)} ${getUnit()}}`;
             },
             rich: {
               name: {
@@ -341,8 +342,8 @@ const Dashboard = ({ isAdmin, onLogout }) => {
                 fontWeight: 'bold',
                 color: '#161616'
               },
-              percent: {
-                fontSize: 12,             // INNER RING LABEL FONT SIZE
+              value: {
+                fontSize: 12,             // INNER RING VALUE FONT SIZE
                 fontWeight: 'bold',
                 color: '#161616'
               }
@@ -350,7 +351,7 @@ const Dashboard = ({ isAdmin, onLogout }) => {
           },
           labelLine: {
             show: true,
-            length: 40,                   // INNER RING: First segment length
+            length: 65,                   // INNER RING: First segment length
             length2: 25,                  // INNER RING: Second segment length
             lineStyle: {
               width: 3                    // INNER RING: Connector line thickness
@@ -378,7 +379,8 @@ const Dashboard = ({ isAdmin, onLogout }) => {
             position: 'outside',
             distanceToLabelLine: 5,       // Distance from connector line end
             formatter: (params) => {
-              return `{name|${params.name}}\n{percent|${params.percent.toFixed(1)}%}`;
+              // Show absolute value instead of percentage
+              return `{name|${params.name}}\n{value|${formatNumber(params.value)} ${getUnit()}}`;
             },
             rich: {
               name: {
@@ -386,8 +388,8 @@ const Dashboard = ({ isAdmin, onLogout }) => {
                 fontWeight: 'bold',
                 color: '#161616'
               },
-              percent: {
-                fontSize: 14,             // OUTER RING LABEL FONT SIZE
+              value: {
+                fontSize: 14,             // OUTER RING VALUE FONT SIZE
                 fontWeight: 'bold',
                 color: '#161616'
               }
