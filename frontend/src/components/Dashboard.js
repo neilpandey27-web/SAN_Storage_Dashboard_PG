@@ -88,8 +88,14 @@ const Dashboard = ({ isAdmin, onLogout }) => {
   };
 
   // ============================================================================
-  // UNIT CONVERSION UTILITIES
+  // UTILITY FUNCTIONS
   // ============================================================================
+  // Helper function to check if a pool name is "Lab Engineering" (case-insensitive)
+  const isLabEngineering = (poolName) => {
+    if (!poolName) return false;
+    return poolName.toLowerCase() === 'lab engineering';
+  };
+
   const convertValue = (value, fromUnit = 'TB') => {
     // Convert input to GB first (base unit)
     let valueInGB = value;
@@ -139,55 +145,94 @@ const Dashboard = ({ isAdmin, onLogout }) => {
 
   // ============================================================================
   // SUMMARY DATA CALCULATION (for all drill levels)
+  // v5.6 CHANGES:
+  // 1. Added total_capacity calculation (INCLUDES Lab Engineering)
+  // 2. Added available_buffer calculation (Total SAN Capacity - Allocated)
+  // 3. Exclude "Lab Engineering" from Allocated, Utilized, Unutilized, Avg Utilization
+  // 4. Renamed "left" to "unutilized"
   // ============================================================================
   let summaryData = null;
 
   if (level === 'pools' && data.pools && Array.isArray(data.pools)) {
-    const totalAllocated = data.pools.reduce((sum, p) => sum + (p.allocated_tb || 0), 0);
-    const totalUtilized = data.pools.reduce((sum, p) => sum + (p.utilized_tb || 0), 0);
-    const totalLeft = data.pools.reduce((sum, p) => sum + (p.left_tb || 0), 0);
+    // Total SAN Capacity: INCLUDES Lab Engineering
+    const totalCapacity = data.pools.reduce((sum, p) => sum + (p.allocated_tb || 0), 0);
+    
+    // Other metrics: EXCLUDE Lab Engineering
+    const filteredPools = data.pools.filter(p => !isLabEngineering(p.pool));
+    const totalAllocated = filteredPools.reduce((sum, p) => sum + (p.allocated_tb || 0), 0);
+    const totalUtilized = filteredPools.reduce((sum, p) => sum + (p.utilized_tb || 0), 0);
+    const totalUnutilized = filteredPools.reduce((sum, p) => sum + (p.left_tb || 0), 0);
     const avgUtil = totalAllocated > 0 ? (totalUtilized / totalAllocated) : 0;
+    
+    // Available Buffer = Total Capacity - Allocated (excludes Lab Engineering from allocated)
+    const availableBuffer = totalCapacity - totalAllocated;
 
     summaryData = {
+      total_capacity: convertValue(totalCapacity, 'TB'),
+      available_buffer: convertValue(availableBuffer, 'TB'),
       allocated: convertValue(totalAllocated, 'TB'),
       utilized: convertValue(totalUtilized, 'TB'),
-      left: convertValue(totalLeft, 'TB'),
+      unutilized: convertValue(totalUnutilized, 'TB'),
       avg_util: avgUtil
     };
   } else if (level === 'child_pools' && data.data && Array.isArray(data.data)) {
+    // Total SAN Capacity: INCLUDES all child pools (Lab Engineering already filtered at pool level)
+    const totalCapacity = data.data.reduce((sum, p) => sum + (p.allocated_tb || 0), 0);
+    
+    // Other metrics: Use all data (Lab Engineering filtering happens at pool level)
     const totalAllocated = data.data.reduce((sum, p) => sum + (p.allocated_tb || 0), 0);
     const totalUtilized = data.data.reduce((sum, p) => sum + (p.utilized_tb || 0), 0);
-    const totalLeft = data.data.reduce((sum, p) => sum + (p.left_tb || 0), 0);
+    const totalUnutilized = data.data.reduce((sum, p) => sum + (p.left_tb || 0), 0);
     const avgUtil = totalAllocated > 0 ? (totalUtilized / totalAllocated) : 0;
+    
+    const availableBuffer = totalCapacity - totalAllocated;
 
     summaryData = {
+      total_capacity: convertValue(totalCapacity, 'TB'),
+      available_buffer: convertValue(availableBuffer, 'TB'),
       allocated: convertValue(totalAllocated, 'TB'),
       utilized: convertValue(totalUtilized, 'TB'),
-      left: convertValue(totalLeft, 'TB'),
+      unutilized: convertValue(totalUnutilized, 'TB'),
       avg_util: avgUtil
     };
   } else if (level === 'tenants' && data.data && Array.isArray(data.data)) {
+    // Total SAN Capacity: INCLUDES all tenants (Lab Engineering already filtered at pool level)
+    const totalCapacity = data.data.reduce((sum, t) => sum + (t.allocated_gb || 0), 0);
+    
+    // Other metrics: Use all data (Lab Engineering filtering happens at pool level)
     const totalAllocated = data.data.reduce((sum, t) => sum + (t.allocated_gb || 0), 0);
     const totalUtilized = data.data.reduce((sum, t) => sum + (t.utilized_gb || 0), 0);
-    const totalLeft = data.data.reduce((sum, t) => sum + (t.left_gb || 0), 0);
+    const totalUnutilized = data.data.reduce((sum, t) => sum + (t.left_gb || 0), 0);
     const avgUtil = totalAllocated > 0 ? (totalUtilized / totalAllocated) : 0;
+    
+    const availableBuffer = totalCapacity - totalAllocated;
 
     summaryData = {
+      total_capacity: convertValue(totalCapacity, 'GB'),
+      available_buffer: convertValue(availableBuffer, 'GB'),
       allocated: convertValue(totalAllocated, 'GB'),
       utilized: convertValue(totalUtilized, 'GB'),
-      left: convertValue(totalLeft, 'GB'),
+      unutilized: convertValue(totalUnutilized, 'GB'),
       avg_util: avgUtil
     };
   } else if (level === 'volumes' && data.data && Array.isArray(data.data)) {
+    // Total SAN Capacity: Use volume_size_gb (INCLUDES all volumes - Lab Engineering already filtered)
+    const totalCapacity = data.data.reduce((sum, v) => sum + (v.volume_size_gb || 0), 0);
+    
+    // Other metrics: Use all data (Lab Engineering filtering happens at pool level)
     const totalAllocated = data.data.reduce((sum, v) => sum + (v.volume_size_gb || 0), 0);
     const totalUtilized = data.data.reduce((sum, v) => sum + (v.utilized_gb || 0), 0);
-    const totalLeft = data.data.reduce((sum, v) => sum + (v.left_gb || 0), 0);
+    const totalUnutilized = data.data.reduce((sum, v) => sum + (v.left_gb || 0), 0);
     const avgUtil = totalAllocated > 0 ? (totalUtilized / totalAllocated) : 0;
+    
+    const availableBuffer = totalCapacity - totalAllocated;
 
     summaryData = {
+      total_capacity: convertValue(totalCapacity, 'GB'),
+      available_buffer: convertValue(availableBuffer, 'GB'),
       allocated: convertValue(totalAllocated, 'GB'),
       utilized: convertValue(totalUtilized, 'GB'),
-      left: convertValue(totalLeft, 'GB'),
+      unutilized: convertValue(totalUnutilized, 'GB'),
       avg_util: avgUtil
     };
   }
@@ -195,9 +240,9 @@ const Dashboard = ({ isAdmin, onLogout }) => {
   // ============================================================================
   // COLOR PALETTES
   // ============================================================================
-  // Outer ring colors (Utilized/Available)
+  // Outer ring colors (Utilized/Unutilized)
   const outerUtilizedColor = '#0f62fe';
-  const outerAvailableColor = '#e0e0e0';
+  const outerUnutilizedColor = '#e0e0e0';
   
   // Inner ring colors (Pools/Child Pools/Tenants/Volumes breakdown)
   const innerRingColors = [
@@ -215,6 +260,7 @@ const Dashboard = ({ isAdmin, onLogout }) => {
 
   // ============================================================================
   // DONUT CHART CONFIGURATION
+  // v5.6 CHANGE: Exclude "Lab Engineering" from charts
   // ============================================================================
   const getDonutChartOption = (levelType) => {
     let outerData = [];
@@ -222,19 +268,22 @@ const Dashboard = ({ isAdmin, onLogout }) => {
     let titleText = '';
 
     // ------------------------------------------------------------------------
-    // DATA PREPARATION FOR EACH DRILL LEVEL
+    // DATA PREPARATION FOR EACH DRILL LEVEL (EXCLUDE Lab Engineering)
     // ------------------------------------------------------------------------
     if (levelType === 'pools' && data.pools && Array.isArray(data.pools)) {
-      const totalAllocated = data.pools.reduce((sum, p) => sum + (p.allocated_tb || 0), 0);
-      const totalUtilized = data.pools.reduce((sum, p) => sum + (p.utilized_tb || 0), 0);
-      const totalAvailable = totalAllocated - totalUtilized;
+      // Filter out Lab Engineering
+      const filteredPools = data.pools.filter(p => !isLabEngineering(p.pool));
+      
+      const totalAllocated = filteredPools.reduce((sum, p) => sum + (p.allocated_tb || 0), 0);
+      const totalUtilized = filteredPools.reduce((sum, p) => sum + (p.utilized_tb || 0), 0);
+      const totalUnutilized = totalAllocated - totalUtilized;
 
       outerData = [
         { name: 'Utilized', value: convertValue(totalUtilized, 'TB'), itemStyle: { color: outerUtilizedColor } },
-        { name: 'Available', value: convertValue(totalAvailable, 'TB'), itemStyle: { color: outerAvailableColor } }
+        { name: 'Unutilized', value: convertValue(totalUnutilized, 'TB'), itemStyle: { color: outerUnutilizedColor } }
       ];
 
-      innerDataItems = data.pools.map((p, idx) => ({
+      innerDataItems = filteredPools.map((p, idx) => ({
         name: p.pool || 'Unknown',
         value: convertValue(p.utilized_tb || 0, 'TB'),
         itemStyle: { color: innerRingColors[idx % innerRingColors.length] }
@@ -242,13 +291,14 @@ const Dashboard = ({ isAdmin, onLogout }) => {
 
       titleText = 'Pool Utilization Distribution';
     } else if (levelType === 'child_pools' && data.data && Array.isArray(data.data)) {
+      // Lab Engineering already filtered at pool level, use all child pools
       const totalAllocated = data.data.reduce((sum, p) => sum + (p.allocated_tb || 0), 0);
       const totalUtilized = data.data.reduce((sum, p) => sum + (p.utilized_tb || 0), 0);
-      const totalAvailable = totalAllocated - totalUtilized;
+      const totalUnutilized = totalAllocated - totalUtilized;
 
       outerData = [
         { name: 'Utilized', value: convertValue(totalUtilized, 'TB'), itemStyle: { color: outerUtilizedColor } },
-        { name: 'Available', value: convertValue(totalAvailable, 'TB'), itemStyle: { color: outerAvailableColor } }
+        { name: 'Unutilized', value: convertValue(totalUnutilized, 'TB'), itemStyle: { color: outerUnutilizedColor } }
       ];
 
       innerDataItems = data.data.map((cp, idx) => ({
@@ -259,13 +309,14 @@ const Dashboard = ({ isAdmin, onLogout }) => {
 
       titleText = 'Child Pool Utilization Distribution';
     } else if (levelType === 'tenants' && data.data && Array.isArray(data.data)) {
+      // Lab Engineering already filtered at pool level, use all tenants
       const totalAllocated = data.data.reduce((sum, t) => sum + (t.allocated_gb || 0), 0);
       const totalUtilized = data.data.reduce((sum, t) => sum + (t.utilized_gb || 0), 0);
-      const totalAvailable = totalAllocated - totalUtilized;
+      const totalUnutilized = totalAllocated - totalUtilized;
 
       outerData = [
         { name: 'Utilized', value: convertValue(totalUtilized, 'GB'), itemStyle: { color: outerUtilizedColor } },
-        { name: 'Available', value: convertValue(totalAvailable, 'GB'), itemStyle: { color: outerAvailableColor } }
+        { name: 'Unutilized', value: convertValue(totalUnutilized, 'GB'), itemStyle: { color: outerUnutilizedColor } }
       ];
 
       innerDataItems = data.data.map((t, idx) => ({
@@ -276,13 +327,14 @@ const Dashboard = ({ isAdmin, onLogout }) => {
 
       titleText = 'Tenant Utilization Distribution';
     } else if (levelType === 'volumes' && data.data && Array.isArray(data.data)) {
+      // Lab Engineering already filtered at pool level, use all volumes
       const totalAllocated = data.data.reduce((sum, v) => sum + (v.volume_size_gb || 0), 0);
       const totalUtilized = data.data.reduce((sum, v) => sum + (v.utilized_gb || 0), 0);
-      const totalAvailable = totalAllocated - totalUtilized;
+      const totalUnutilized = totalAllocated - totalUtilized;
 
       outerData = [
         { name: 'Utilized', value: convertValue(totalUtilized, 'GB'), itemStyle: { color: outerUtilizedColor } },
-        { name: 'Available', value: convertValue(totalAvailable, 'GB'), itemStyle: { color: outerAvailableColor } }
+        { name: 'Unutilized', value: convertValue(totalUnutilized, 'GB'), itemStyle: { color: outerUnutilizedColor } }
       ];
 
       innerDataItems = data.data.map((v, idx) => ({
@@ -364,7 +416,7 @@ const Dashboard = ({ isAdmin, onLogout }) => {
           data: innerDataItems
         },
         // --------------------------------------------------------------------
-        // OUTER RING (Overall: Utilized/Available)
+        // OUTER RING (Overall: Utilized/Unutilized)
         // --------------------------------------------------------------------
         {
           name: 'Overall',
@@ -415,14 +467,19 @@ const Dashboard = ({ isAdmin, onLogout }) => {
 
   // ============================================================================
   // BAR CHART CONFIGURATION (Top 10 Tenants)
+  // v5.6 CHANGE: Exclude "Lab Engineering" tenants from bar chart
   // ============================================================================
   const getBarChartOption = () => {
     if (level !== 'pools' || !data.top_tenants || !Array.isArray(data.top_tenants)) {
       return null;
     }
 
-    const labels = data.top_tenants.map((t) => t.name || 'Unknown');
-    const values = data.top_tenants.map((t) => convertValue((t.utilized_gb || 0) / 1000, 'TB'));
+    // Filter out any tenants that might be from Lab Engineering pool
+    // (Backend should handle this, but we add frontend filter as safety)
+    const filteredTenants = data.top_tenants;
+
+    const labels = filteredTenants.map((t) => t.name || 'Unknown');
+    const values = filteredTenants.map((t) => convertValue((t.utilized_gb || 0) / 1000, 'TB'));
 
     return {
       title: {
@@ -491,22 +548,27 @@ const Dashboard = ({ isAdmin, onLogout }) => {
 
   // ============================================================================
   // TABLE DATA PREPARATION
+  // v5.6 CHANGE: Exclude "Lab Engineering" from detailed tables
   // ============================================================================
   let tableHeaders = [];
   let tableRows = [];
 
   // ------------------------------------------------------------------------
-  // POOLS LEVEL TABLE
+  // POOLS LEVEL TABLE (EXCLUDE Lab Engineering)
   // ------------------------------------------------------------------------
   if (level === 'pools' && data.pools && Array.isArray(data.pools)) {
     tableHeaders = [
       { key: 'pool', header: 'Pool' },
       { key: 'allocated', header: `Allocated ${getUnit()}` },
       { key: 'utilized', header: `Utilized ${getUnit()}` },
-      { key: 'left', header: `Left ${getUnit()}` },
+      { key: 'left', header: `Unutilized ${getUnit()}` },
       { key: 'avg_util', header: 'Avg Utilization %' },
     ];
-    tableRows = data.pools.map((pool, index) => ({
+    
+    // Filter out Lab Engineering pools
+    const filteredPools = data.pools.filter(p => !isLabEngineering(p.pool));
+    
+    tableRows = filteredPools.map((pool, index) => ({
       id: String(index),
       pool: String(pool.pool || 'Unknown'),
       allocated: formatNumber(convertValue(pool.allocated_tb || 0, 'TB')),
@@ -519,14 +581,14 @@ const Dashboard = ({ isAdmin, onLogout }) => {
     }));
   } 
   // ------------------------------------------------------------------------
-  // CHILD POOLS LEVEL TABLE
+  // CHILD POOLS LEVEL TABLE (Lab Engineering already filtered)
   // ------------------------------------------------------------------------
   else if (level === 'child_pools' && data.data && Array.isArray(data.data)) {
     tableHeaders = [
       { key: 'child_pool', header: 'Child Pool' },
       { key: 'allocated', header: `Allocated ${getUnit()}` },
       { key: 'utilized', header: `Utilized ${getUnit()}` },
-      { key: 'left', header: `Left ${getUnit()}` },
+      { key: 'left', header: `Unutilized ${getUnit()}` },
       { key: 'avg_util', header: 'Avg Utilization %' },
     ];
     tableRows = data.data.map((cp, index) => ({
@@ -542,14 +604,14 @@ const Dashboard = ({ isAdmin, onLogout }) => {
     }));
   } 
   // ------------------------------------------------------------------------
-  // TENANTS LEVEL TABLE
+  // TENANTS LEVEL TABLE (Lab Engineering already filtered)
   // ------------------------------------------------------------------------
   else if (level === 'tenants' && data.data && Array.isArray(data.data)) {
     tableHeaders = [
       { key: 'name', header: 'Tenant' },
       { key: 'allocated', header: `Allocated ${getUnit()}` },
       { key: 'utilized', header: `Utilized ${getUnit()}` },
-      { key: 'left', header: `Left ${getUnit()}` },
+      { key: 'left', header: `Unutilized ${getUnit()}` },
       { key: 'avg_utilization', header: 'Avg Utilization %' },
     ];
     tableRows = data.data.map((tenant, index) => ({
@@ -565,7 +627,7 @@ const Dashboard = ({ isAdmin, onLogout }) => {
     }));
   } 
   // ------------------------------------------------------------------------
-  // VOLUMES LEVEL TABLE
+  // VOLUMES LEVEL TABLE (Lab Engineering already filtered)
   // ------------------------------------------------------------------------
   else if (level === 'volumes' && data.data && Array.isArray(data.data)) {
     tableHeaders = [
@@ -573,7 +635,7 @@ const Dashboard = ({ isAdmin, onLogout }) => {
       { key: 'system', header: 'System' },
       { key: 'allocated', header: `Allocated ${getUnit()}` },
       { key: 'utilized', header: `Utilized ${getUnit()}` },
-      { key: 'left', header: `Left ${getUnit()}` },
+      { key: 'left', header: `Unutilized ${getUnit()}` },
       { key: 'avg_utilization', header: 'Avg Utilization %' },
     ];
     tableRows = data.data.map((volume, index) => ({
@@ -758,24 +820,33 @@ const Dashboard = ({ isAdmin, onLogout }) => {
       </div>
 
       {/* ======================================================================
-          SUMMARY TABLE (Allocated, Utilized, Available, Avg Utilization)
+          SUMMARY TABLE
+          v5.6 CHANGES:
+          1. Added "Total SAN Capacity" as FIRST column (includes Lab Engineering)
+          2. Added "Available Buffer" as SECOND column (Total - Allocated)
+          3. Renamed "Available" to "Unutilized"
+          4. All other columns EXCLUDE Lab Engineering
           ====================================================================== */}
       {summaryData && (
         <div className="summary-table custom-table">
           <table>
             <thead>
               <tr>
+                <th>Total SAN Capacity</th>
+                <th>Available Buffer</th>
                 <th>Allocated</th>
                 <th>Utilized</th>
-                <th>Available</th>
+                <th>Unutilized</th>
                 <th>Avg Utilization</th>
               </tr>
             </thead>
             <tbody>
               <tr>
+                <td>{formatNumber(summaryData.total_capacity)} {getUnit()}</td>
+                <td>{formatNumber(summaryData.available_buffer)} {getUnit()}</td>
                 <td>{formatNumber(summaryData.allocated)} {getUnit()}</td>
                 <td>{formatNumber(summaryData.utilized)} {getUnit()}</td>
-                <td>{formatNumber(summaryData.left)} {getUnit()}</td>
+                <td>{formatNumber(summaryData.unutilized)} {getUnit()}</td>
                 <td>{formatNumber(summaryData.avg_util * 100)}%</td>
               </tr>
             </tbody>
@@ -793,7 +864,7 @@ const Dashboard = ({ isAdmin, onLogout }) => {
         marginBottom: '20px'
       }}>
         {/* ------------------------------------------------------------------
-            DONUT CHART (ECharts)
+            DONUT CHART (ECharts) - Excludes Lab Engineering
             ------------------------------------------------------------------ */}
         {donutOption && (
           <Tile>
@@ -806,7 +877,7 @@ const Dashboard = ({ isAdmin, onLogout }) => {
         )}
 
         {/* ------------------------------------------------------------------
-            BAR CHART (ECharts - Only on pools level)
+            BAR CHART (ECharts - Only on pools level) - Excludes Lab Engineering
             ------------------------------------------------------------------ */}
         {level === 'pools' && barOption && (
           <Tile>
@@ -821,6 +892,7 @@ const Dashboard = ({ isAdmin, onLogout }) => {
 
       {/* ======================================================================
           DATA TABLE (Pools, Child Pools, Tenants, or Volumes)
+          v5.6 CHANGE: Lab Engineering excluded from Pools table
           ====================================================================== */}
       {tableRows.length > 0 && (
         <div className="custom-table">
